@@ -142,7 +142,8 @@ if(CMAKE_COMPILER_IS_GNUCC)
         set(ZLIB_ARM_NEON_HDRS
             contrib/arm/chunkcopy.h
             contrib/arm/inffast_chunk.h
-            contrib/arm/neon_slide_hash.h)
+            contrib/arm/neon_slide_hash.h
+            contrib/arm/arm_longest_match.h)
         set(ZLIB_ARM_NEON contrib/arm/inflate.c contrib/arm/inffast_chunk.c)
         add_definitions(-DARM_NEON)
         set(COMPILER ${CMAKE_C_COMPILER})

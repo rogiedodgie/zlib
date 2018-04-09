@@ -50,9 +50,6 @@
 /* @(#) $Id$ */
 
 #include "deflate.h"
-#if __ARM_NEON
-#include "contrib/arm/neon_slide_hash.h"
-#endif
 
 const char deflate_copyright[] =
    " deflate 1.2.11 Copyright 1995-2017 Jean-loup Gailly and Mark Adler ";
@@ -195,6 +192,11 @@ local const config configuration_table[10] = {
 #define CLEAR_HASH(s) \
     s->head[s->hash_size-1] = NIL; \
     zmemzero((Bytef *)s->head, (unsigned)(s->hash_size-1)*sizeof(*s->head));
+
+#if defined(ARM_NEON)
+#include "contrib/arm/arm_longest_match.h"
+#include "contrib/arm/neon_slide_hash.h"
+#endif
 
 /* ===========================================================================
  * Slide the hash table when sliding the window down (could be avoided with 32
@@ -1244,6 +1246,9 @@ local uInt longest_match(s, cur_match)
     deflate_state *s;
     IPos cur_match;                             /* current match */
 {
+#if defined(ARM_NEON)
+    return arm_longest_match(s, cur_match);
+#endif
     unsigned chain_length = s->max_chain_length;/* max hash chain length */
     register Bytef *scan = s->window + s->strstart; /* current string */
     register Bytef *match;                      /* matched string */
