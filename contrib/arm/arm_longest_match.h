@@ -24,9 +24,9 @@
 #include <stdint.h>
 inline long get_match_len(const unsigned char *a, const unsigned char *b, long max)
 {
-    register int len = 0;
-    register unsigned long xor = 0;
-    register int check_loops = max/sizeof(unsigned long);
+    int len = 0;
+    unsigned long xor = 0;
+    int check_loops = max/sizeof(unsigned long);
     while(check_loops-- > 0) {
         xor = (*(unsigned long *)(a+len)) ^ (*(unsigned long *)(b+len));
         if (xor) break;
@@ -61,7 +61,7 @@ inline unsigned arm_longest_match(deflate_state *const s, IPos cur_match) {
     unsigned int best_len = s->prev_length;     /* best match length so far */
     unsigned int nice_match = s->nice_match;    /* stop if match long enough */
     IPos limit = s->strstart > (IPos)MAX_DIST(s) ?
-        s->strstart - (IPos)MAX_DIST(s) : NULL;
+        s->strstart - (IPos)MAX_DIST(s) : 0;
     /* Stop when cur_match becomes <= limit. To simplify the code,
      * we prevent matches with the string of window index 0.
      */
