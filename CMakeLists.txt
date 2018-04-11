@@ -8,6 +8,7 @@ set(VERSION "1.2.11")
 option(ASM686 "Enable building i686 assembly implementation")
 option(AMD64 "Enable building amd64 assembly implementation")
 option(ARM_NEON "Enable building ARM NEON intrinsics implementation")
+option(GCOV "Enable instrumented build")
 
 set(INSTALL_BIN_DIR "${CMAKE_INSTALL_PREFIX}/bin" CACHE PATH "Installation directory for executables")
 set(INSTALL_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib" CACHE PATH "Installation directory for libraries")
@@ -131,6 +132,14 @@ if(NOT MINGW)
 endif()
 
 if(CMAKE_COMPILER_IS_GNUCC)
+    if(GCOV)
+        # Details: https://stackoverflow.com/questions/11783932/how-to-add-linker-or-compile-flag-in-cmake-file
+        SET(GCC_COVERAGE_COMPILE_FLAGS "-fprofile-arcs -ftest-coverage")
+        SET(GCC_COVERAGE_LINK_FLAGS    "-lgcov")
+        SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} ${GCC_COVERAGE_COMPILE_FLAGS}")
+        SET(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} ${GCC_COVERAGE_LINK_FLAGS}")
+    endif()
+
     if(ASM686)
         set(ZLIB_ASMS contrib/asm686/match.S)
     elseif (AMD64)
