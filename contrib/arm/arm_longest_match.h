@@ -22,7 +22,7 @@
 #if defined(ARM_NEON)
 #include "deflate.h"
 #include <stdint.h>
-inline long get_match_len(const unsigned char *a, const unsigned char *b, long max)
+inline static long ZLIB_INTERNAL get_match_len(const unsigned char *a, const unsigned char *b, long max)
 {
     int len = 0;
     unsigned long xor = 0;
@@ -53,7 +53,7 @@ inline long get_match_len(const unsigned char *a, const unsigned char *b, long m
  * of search buffer
  *
  */
-inline unsigned arm_longest_match(deflate_state *const s, IPos cur_match) {
+inline static unsigned ZLIB_INTERNAL arm_longest_match(deflate_state *const s, IPos cur_match) {
     unsigned chain_length = s->max_chain_length;/* max hash chain length */
     unsigned char *scan = s->window + s->strstart; /* current string */
     unsigned char *match;                       /* matched string */

@@ -23,7 +23,7 @@
 #include "deflate.h"
 #include <arm_neon.h>
 
-inline static void neon_slide_hash(deflate_state *s)
+inline static void ZLIB_INTERNAL neon_slide_hash(deflate_state *s)
 {
     /*
      * This is ASIMD implementation for hash table rebase
