@@ -275,3 +275,10 @@ enable_language(CXX)
 set(CMAKE_CXX_STANDARD 14) # workaround for older compilers (e.g. g++ 5.4).
 add_executable(zlib_bench contrib/arm/zlib_bench.cc)
 target_link_libraries(zlib_bench zlib)
+
+#============================================================================
+# Code coverage
+#============================================================================
+add_executable(infcover test/infcover.c)
+target_link_libraries(infcover zlibstatic)
+add_test(infcover infcover)
