@@ -1,84 +1,65 @@
-/* Copyright (C) 1995-2011, 2016 Mark Adler
- * Copyright (C) 2017 ARM Holdings Inc.
- * Authors: Adenilson Cavalcanti <adenilson.cavalcanti@arm.com>
- *          Jun He <jun.he@arm.com>
- * This software is provided 'as-is', without any express or implied
- * warranty.  In no event will the authors be held liable for any damages
- * arising from the use of this software.
- * Permission is granted to anyone to use this software for any purpose,
- * including commercial applications, and to alter it and redistribute it
- * freely, subject to the following restrictions:
- * 1. The origin of this software must not be misrepresented; you must not
- *  claim that you wrote the original software. If you use this software
- *    in a product, an acknowledgment in the product documentation would be
- *    appreciated but is not required.
- * 2. Altered source versions must be plainly marked as such, and must not be
- *    misrepresented as being the original software.
- * 3. This notice may not be removed or altered from any source distribution.
+/* Copyright 2018 The Chromium Authors. All rights reserved.
+ * Use of this source code is governed by a BSD-style license that can be
+ * found in the Chromium source repository LICENSE file.
  */
-#ifndef __NEON_SLIDE_HASH__
-#define __NEON_SLIDE_HASH__
+#ifndef __SLIDE_HASH__NEON__
+#define __SLIDE_HASH__NEON__
 
-#if (defined(__ARM_NEON__) || defined(__ARM_NEON))
 #include "deflate.h"
 #include <arm_neon.h>
 
-inline static void ZLIB_INTERNAL neon_slide_hash(deflate_state *s)
+inline static void ZLIB_INTERNAL neon_slide_hash_update(Posf *hash,
+                                                        const uInt hash_size,
+                                                        const ush w_size)
+{
+   /* NEON 'Q' registers allow to store 128 bits, so we can load 8x16-bits
+     * values. For further details, check:
+     * ARM DHT 0002A, section 1.3.2 NEON Registers.
+     */
+    const size_t chunk = sizeof(uint16x8_t) / sizeof(uint16_t);
+    /* Unrolling the operation yielded a compression performance boost in both
+     * ARMv7 (from 11.7% to 13.4%) and ARMv8 (from 3.7% to 7.5%) for HTML4
+     * content. For full benchmarking data, check: http://crbug.com/863257.
+     */
+    const size_t stride = 2*chunk;
+    const uint16x8_t v = vdupq_n_u16(w_size);
+
+    for (Posf *end = hash + hash_size; hash != end; hash += stride) {
+        uint16x8_t m_low = vld1q_u16(hash);
+        uint16x8_t m_high = vld1q_u16(hash + chunk);
+
+        /* The first 'q' in vqsubq_u16 makes these subtracts saturate to zero,
+         * replacing the ternary operator expression in the original code:
+         * (m >= wsize ? m - wsize : NIL).
+         */
+        m_low = vqsubq_u16(m_low, v);
+        m_high = vqsubq_u16(m_high, v);
+
+        vst1q_u16(hash, m_low);
+        vst1q_u16(hash + chunk, m_high);
+    }
+}
+
+
+inline static void ZLIB_INTERNAL neon_slide_hash(Posf *head, Posf *prev,
+                                                 const unsigned short w_size,
+                                                 const uInt hash_size)
 {
     /*
-     * This is ASIMD implementation for hash table rebase
-     * it assumes:
-     * 1. hash chain offset (Pos) is 2 bytes
-     * 2. hash table size is multiple*128 bytes
+     * SIMD implementation for hash table rebase assumes:
+     * 1. hash chain offset (Pos) is 2 bytes.
+     * 2. hash table size is multiple of 32 bytes.
      * #1 should be true as Pos is defined as "ush"
-     * #2 should be true as hash_bits are greater that 7
+     * #2 should be true as hash_bits are greater than 7
      */
-    unsigned n, m;
-    unsigned short wsize = s->w_size;
-    uint16x8_t v, *p;
-    size_t size;
+    const size_t size = hash_size * sizeof(head[0]);
+    Assert(sizeof(Pos) == 2, "Wrong Pos size.");
+    Assert((size % sizeof(uint16x8_t) * 2) == 0, "Hash table size error.");
 
-    size = s->hash_size*sizeof(s->head[0]);
-    Assert((size % sizeof(uint16x8_t) * 8 == 0), "hash table size err");
-
-    Assert(sizeof(Pos) == 2, "Wrong Pos size");
-
-    /* slide s->head */
-    v = vdupq_n_u16(wsize);
-    p = (uint16x8_t *)(s->head);
-    n = size / (sizeof(uint16x8_t) * 8);
-    do {
-        p[0] = vqsubq_u16(p[0], v);
-        p[1] = vqsubq_u16(p[1], v);
-        p[2] = vqsubq_u16(p[2], v);
-        p[3] = vqsubq_u16(p[3], v);
-        p[4] = vqsubq_u16(p[4], v);
-        p[5] = vqsubq_u16(p[5], v);
-        p[6] = vqsubq_u16(p[6], v);
-        p[7] = vqsubq_u16(p[7], v);
-        p += 8;
-    } while (--n);
+    neon_slide_hash_update(head, hash_size, w_size);
 #ifndef FASTEST
-    /* slide s->prev */
-    size = wsize*sizeof(s->prev[0]);
-
-    Assert((size % sizeof(uint16x8_t) * 8 == 0), "hash table size err");
-
-    p = (uint16x8_t *)(s->prev);
-    n = size / (sizeof(uint16x8_t) * 8);
-    do {
-        p[0] = vqsubq_u16(p[0], v);
-        p[1] = vqsubq_u16(p[1], v);
-        p[2] = vqsubq_u16(p[2], v);
-        p[3] = vqsubq_u16(p[3], v);
-        p[4] = vqsubq_u16(p[4], v);
-        p[5] = vqsubq_u16(p[5], v);
-        p[6] = vqsubq_u16(p[6], v);
-        p[7] = vqsubq_u16(p[7], v);
-        p += 8;
-    } while (--n);
+    neon_slide_hash_update(prev, w_size, w_size);
 #endif
 }
 
-#endif
 #endif

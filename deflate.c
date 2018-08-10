@@ -207,7 +207,7 @@ local void slide_hash(s)
     deflate_state *s;
 {
 #if ARM_NEON
-    return neon_slide_hash(s);
+    return neon_slide_hash(s->head, s->prev, s->w_size, s->hash_size);
 #else
     unsigned n, m;
     Posf *p;
