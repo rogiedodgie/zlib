@@ -645,7 +645,6 @@ unsigned long ZEXPORT armv8_crc32_z(crc, buf, len)
     z_crc_t val;
     z_word_t crc1, crc2;
     const z_word_t *word;
-    z_word_t val0, val1, val2;
     z_size_t last, last2, i;
     z_size_t num;
 
@@ -669,12 +668,9 @@ unsigned long ZEXPORT armv8_crc32_z(crc, buf, len)
         crc1 = 0;
         crc2 = 0;
         for (i = 0; i < Z_BATCH; i++) {
-            val0 = word[i];
-            val1 = word[i + Z_BATCH];
-            val2 = word[i + 2 * Z_BATCH];
-	    crc = __crc32d(crc, val0);
-	    crc1 = __crc32d(crc1, val1);
-	    crc2 = __crc32d(crc2, val2);
+            crc = __crc32d(crc, word[i]);
+            crc1 = __crc32d(crc1, word[i + Z_BATCH]);
+            crc2 = __crc32d(crc2, word[i + 2 * Z_BATCH]);
         }
         word += 3 * Z_BATCH;
         num -= 3 * Z_BATCH;
@@ -690,12 +686,9 @@ unsigned long ZEXPORT armv8_crc32_z(crc, buf, len)
         crc1 = 0;
         crc2 = 0;
         for (i = 0; i < last; i++) {
-            val0 = word[i];
-            val1 = word[i + last];
-            val2 = word[i + last2];
-	    crc = __crc32d(crc, val0);
-	    crc1 = __crc32d(crc1, val1);
-	    crc2 = __crc32d(crc2, val2);
+            crc = __crc32d(crc, word[i]);
+            crc1 = __crc32d(crc1, word[i + last]);
+            crc2 = __crc32d(crc2, word[i + last2]);
         }
         word += 3 * last;
         num -= 3 * last;
@@ -706,8 +699,7 @@ unsigned long ZEXPORT armv8_crc32_z(crc, buf, len)
 
     /* Compute the CRC on any remaining words. */
     for (i = 0; i < num; i++) {
-        val0 = word[i];
-	crc = __crc32d(crc, val0);
+        crc = __crc32d(crc, word[i]);
     }
     word += num;
 
@@ -715,7 +707,7 @@ unsigned long ZEXPORT armv8_crc32_z(crc, buf, len)
     buf = (const unsigned char FAR *)word;
     while (len) {
         len--;
-	crc = __crc32b(crc, *buf++);
+        crc = __crc32b(crc, *buf++);
     }
 
     /* Return the CRC, post-conditioned. */
@@ -750,7 +742,7 @@ unsigned long ZEXPORT crc32_z(crc, buf, len)
 #if defined(CRC32_ARMV8_CRC32)
     /* If we don't have required CPU features, fallback to portable implementation. */
     if (arm_cpu_enable_crc32) /* TODO: add x86 optimized CRC32. */
-	return armv8_crc32_z(crc, buf, len);
+        return armv8_crc32_z(crc, buf, len);
 #endif
 
 #ifdef W
