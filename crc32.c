@@ -26,7 +26,6 @@
 #    define DYNAMIC_CRC_TABLE
 #  endif /* !DYNAMIC_CRC_TABLE */
 #endif /* MAKECRCH */
-
 #include "cpu_features.h"
 #include "zutil.h"      /* for Z_U4, Z_U8, z_crc_t, and FAR definitions */
 
@@ -629,6 +628,46 @@ const z_crc_t FAR * ZEXPORT get_crc_table()
  */
 #if defined(__aarch64__) && defined(CRC32_ARMV8_CRC32) && W == 8
 #include <arm_acle.h>
+unsigned long ZEXPORT armv8_crc32_chromium(crc, buf, len)
+    unsigned long crc;
+    const unsigned char FAR *buf;
+    z_size_t len;
+{
+
+  while (len && ((uintptr_t)buf & 7)) {
+    crc = __crc32b(crc, *buf++);
+    --len;
+  }
+
+  const uint64_t *buf8 = (const uint64_t *)buf;
+
+  while (len >= 64) {
+    crc = __crc32d(crc, *buf8++);
+    crc = __crc32d(crc, *buf8++);
+    crc = __crc32d(crc, *buf8++);
+    crc = __crc32d(crc, *buf8++);
+
+    crc = __crc32d(crc, *buf8++);
+    crc = __crc32d(crc, *buf8++);
+    crc = __crc32d(crc, *buf8++);
+    crc = __crc32d(crc, *buf8++);
+    len -= 64;
+  }
+
+  while (len >= 8) {
+    crc = __crc32d(crc, *buf8++);
+    len -= 8;
+  }
+
+  buf = (const unsigned char *)buf8;
+
+  while (len--) {
+    crc = __crc32b(crc, *buf++);
+  }
+
+  return crc ^ 0xffffffff;
+}
+
 /*
    Constants empirically determined to maximize speed. These values are from
    measurements on a Cortex-A57. Your mileage may vary.
@@ -742,7 +781,8 @@ unsigned long ZEXPORT crc32_z(crc, buf, len)
 #if defined(CRC32_ARMV8_CRC32)
     /* If we don't have required CPU features, fallback to portable implementation. */
     if (arm_cpu_enable_crc32) /* TODO: add x86 optimized CRC32. */
-        return armv8_crc32_z(crc, buf, len);
+      //return armv8_crc32_z(crc, buf, len);
+        return armv8_crc32_chromium(crc, buf, len);
 #endif
 
 #ifdef W
