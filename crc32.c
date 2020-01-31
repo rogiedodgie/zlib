@@ -753,6 +753,97 @@ unsigned long ZEXPORT armv8_crc32_z(crc, buf, len)
     return crc ^ 0xffffffff;
 }
 
+unsigned long ZEXPORT armv8_crc32_unrolled(crc, buf, len)
+    unsigned long crc;
+    const unsigned char FAR *buf;
+    z_size_t len;
+{
+    z_crc_t val;
+    z_word_t crc1, crc2;
+    const z_word_t *word;
+    z_size_t last, last2, i;
+    z_size_t num;
+
+    /* Initial setup is done in crc32_z() i.e. handling Z_NULL, etc. */
+
+    /* Compute the CRC up to a word boundary. */
+    while (len && ((z_size_t)buf & 7) != 0) {
+        len--;
+	crc = __crc32b(crc, *buf++);
+    }
+
+    /* Prepare to compute the CRC on full 64-bit words word[0..num-1]. */
+    word = (z_word_t const *)buf;
+    num = len >> 3;
+    len &= 7;
+
+    /* Do three interleaved CRCs to realize the throughput of one crc32x
+       instruction per cycle. Each CRC is calcuated on Z_BATCH words. The three
+       CRCs are combined into a single CRC after each set of batches. */
+    while (num >= 3 * Z_BATCH) {
+        crc1 = 0;
+        crc2 = 0;
+        for (i = 0; i < Z_BATCH; i++) {
+            crc = __crc32d(crc, word[i]);
+            crc1 = __crc32d(crc1, word[i + Z_BATCH]);
+            crc2 = __crc32d(crc2, word[i + 2 * Z_BATCH]);
+        }
+        word += 3 * Z_BATCH;
+        num -= 3 * Z_BATCH;
+        crc = multmodp(Z_BATCH_ZEROS, crc) ^ crc1;
+        crc = multmodp(Z_BATCH_ZEROS, crc) ^ crc2;
+    }
+
+    /* Do one last smaller batch with the remaining words, if there are enough
+       to pay for the combination of CRCs. */
+    last = num / 3;
+    if (last >= Z_BATCH_MIN) {
+        last2 = last << 1;
+        crc1 = 0;
+        crc2 = 0;
+        for (i = 0; i < last; i++) {
+            crc = __crc32d(crc, word[i]);
+            crc1 = __crc32d(crc1, word[i + last]);
+            crc2 = __crc32d(crc2, word[i + last2]);
+        }
+        word += 3 * last;
+        num -= 3 * last;
+        val = x2nmodp(last, 6);
+        crc = multmodp(val, crc) ^ crc1;
+        crc = multmodp(val, crc) ^ crc2;
+    }
+
+    /* Compute the CRC on any remaining words. */
+    int tail = num * sizeof(z_word_t);
+    while (tail >= 64) {
+        crc = __crc32d(crc, *word++);
+        crc = __crc32d(crc, *word++);
+        crc = __crc32d(crc, *word++);
+        crc = __crc32d(crc, *word++);
+
+        crc = __crc32d(crc, *word++);
+        crc = __crc32d(crc, *word++);
+        crc = __crc32d(crc, *word++);
+        crc = __crc32d(crc, *word++);
+        tail -= 64;
+    }
+
+    while (tail >= 8) {
+        tail -= 8;
+        crc = __crc32d(crc, *word++);
+    }
+
+    /* Complete the CRC on any remaining bytes. */
+    buf = (const unsigned char FAR *)word;
+    while (len >= 8) {
+        len--;
+        crc = __crc32b(crc, *buf++);
+    }
+
+    /* Return the CRC, post-conditioned. */
+    return crc ^ 0xffffffff;
+}
+
 #endif
 
 /* ========================================================================= */
