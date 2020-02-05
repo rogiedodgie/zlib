@@ -26,7 +26,6 @@
 #    define DYNAMIC_CRC_TABLE
 #  endif /* !DYNAMIC_CRC_TABLE */
 #endif /* MAKECRCH */
-
 #include "cpu_features.h"
 #include "zutil.h"      /* for Z_U4, Z_U8, z_crc_t, and FAR definitions */
 
@@ -618,6 +617,10 @@ const z_crc_t FAR * ZEXPORT get_crc_table()
     return (const z_crc_t FAR *)crc_table;
 }
 
+unsigned long crc32_z(unsigned long, const unsigned char FAR *, z_size_t) __attribute__ ((ifunc ("crc32_z_resolver")));
+
+typedef unsigned long crc32_func_type(unsigned long, const unsigned char FAR *, z_size_t);
+
 /* =========================================================================
  * Use ARM machine instructions if available. This will compute the CRC about
  * ten times faster than the braided calculation. This code does not check for
@@ -648,7 +651,12 @@ unsigned long ZEXPORT armv8_crc32_z(crc, buf, len)
     z_size_t last, last2, i;
     z_size_t num;
 
-    /* Initial setup is done in crc32_z() i.e. handling Z_NULL, etc. */
+    /* Return initial CRC, if requested. */
+    if (buf == Z_NULL)
+	return 0;
+
+    /* Pre-condition the CRC */
+    crc ^= 0xffffffff;
 
     /* Compute the CRC up to a word boundary. */
     while (len && ((z_size_t)buf & 7) != 0) {
@@ -717,20 +725,13 @@ unsigned long ZEXPORT armv8_crc32_z(crc, buf, len)
 #endif
 
 /* ========================================================================= */
-unsigned long ZEXPORT crc32_z(crc, buf, len)
+unsigned long ZEXPORT crc32_z_portable(crc, buf, len)
     unsigned long crc;
     const unsigned char FAR *buf;
     z_size_t len;
 {
     /* Return initial CRC, if requested. */
-    if (buf == Z_NULL) {
-	/* Assume user is calling 'crc32(0, NULL, 0)', so we cache CPU features
-	 * detection early (and infrequently) on.
-	 */
-        if (!len)
-            cpu_check_features();
-	return 0;
-    }
+    if (buf == Z_NULL) return 0;
 
 #ifdef DYNAMIC_CRC_TABLE
     once(&made, make_crc_table);
@@ -738,12 +739,6 @@ unsigned long ZEXPORT crc32_z(crc, buf, len)
 
     /* Pre-condition the CRC */
     crc ^= 0xffffffff;
-
-#if defined(CRC32_ARMV8_CRC32)
-    /* If we don't have required CPU features, fallback to portable implementation. */
-    if (arm_cpu_enable_crc32) /* TODO: add x86 optimized CRC32. */
-        return armv8_crc32_z(crc, buf, len);
-#endif
 
 #ifdef W
 
@@ -1051,6 +1046,17 @@ unsigned long ZEXPORT crc32_z(crc, buf, len)
     return crc ^ 0xffffffff;
 }
 
+crc32_func_type *crc32_z_resolver()
+{
+
+#if defined(CRC32_ARMV8_CRC32)
+    cpu_check_features();
+    /* If we don't have required CPU features, fallback to portable implementation. */
+    if (arm_cpu_enable_crc32) /* TODO: add x86 optimized CRC32. */
+        return armv8_crc32_z;
+#endif
+    return crc32_z_portable;
+}
 /* ========================================================================= */
 unsigned long ZEXPORT crc32(crc, buf, len)
     unsigned long crc;
