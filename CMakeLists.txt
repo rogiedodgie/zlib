@@ -131,6 +131,11 @@ if(NOT MINGW)
     )
 endif()
 
+# Set this if you are using NDK @x86 to cross compile to android@ARM.
+set(CMAKE_SYSTEM_PROCESSOR aarch64)
+add_definitions(-DCRC32_ARMV8_CRC32)
+set_source_files_properties(${ZLIB_SRCS} PROPERTIES LANGUAGE C COMPILE_FLAGS -march=armv8-a+crc)
+
 if(CMAKE_COMPILER_IS_GNUCC)
     if(ASM686)
         set(ZLIB_ASMS contrib/asm686/match.S)
